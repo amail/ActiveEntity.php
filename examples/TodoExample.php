@@ -8,28 +8,28 @@
 
 	$todos = new TodoCollection($data_store);
 
+	$todos->sortByCompleted();
+
+	// Handle todo actions
 	if(isset($_POST['action'])){
+		// Create new or resolve existing
+		$todo = isset($_POST['todo_id']) ? $todos->getById($_POST['todo_id'])
+			: new Todo($data_store, array(), $todos);
+
 		switch($_POST['action']){
 			case 'add':
 				if(isset($_POST['text']) && strlen($_POST['text']) > 0){
-					$todo = new Todo($data_store, array(), $todos);
 					$todo->setText($_POST['text']);
 					$todo->setCreated(time());
 					$todo->save();
 				}
 				break;
 			case 'toggle_completed':
-				if(isset($_POST['todo_id'])){
-					$todo = new Todo($data_store, array("id" => $_POST['todo_id']), $todos);
-					$todo->setCompleted(!$todo->getCompleted());
-					$todo->save();
-				}
+				$todo->setCompleted(!$todo->getCompleted());
+				$todo->save();
 				break;
 			case 'remove':
-				if(isset($_POST['todo_id'])){
-					$todo = new Todo($data_store, array("id" => $_POST['todo_id']), $todos);
-					$todo->remove();
-				}
+				$todo->remove();
 				break;
 		}
 	}
@@ -46,6 +46,10 @@
 				text-align: left;
 				width: 700px;
 			}
+			table#todo-list tr.completed {
+				color: #a0a0a0;
+				text-decoration: line-through;
+			}
 			h3 {
 				background-color: #f0f0f0;
 				padding: 5px;
@@ -53,10 +57,10 @@
 		</style>
     </head>
     <body>
-		<h1><a href="Todo.php">Todo - ActiveEntity</a></h1>
+		<h1><a href="TodoExample.php">Todo - ActiveEntity</a></h1>
 		<div>
 			<h3>Todos</h3>
-			<table>
+			<table id="todo-list">
 				<thead>
 					<th>Text</th>
 					<th>Created</th>
@@ -69,7 +73,7 @@
 						</tr>
 					<?php }else{ ?>
 						<?php foreach($todos as $todo){ ?>
-							<tr>
+							<tr <?php if($todo->getCompleted()){ ?>class='completed'<?php } ?>>
 								<td><?php echo($todo->getText()) ?></td>
 								<td><?php echo(date("Y-m-d H:i:s", $todo->getCreated())) ?></td>
 								<td>

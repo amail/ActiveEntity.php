@@ -21,7 +21,10 @@
 		protected $_items_eof = true;
 		protected $_items_loaded = false;
 		protected $_items_removed = array();
+		
 		protected $_items_sort_order = SortOrder::Ascending;
+		protected $_items_sort_property = null;
+		protected $_items_require_resort = true;
 
 		private $_key_based_data_store;
 
@@ -43,13 +46,25 @@
 	    		return call_user_func_array(array($this, $method), $arguments);
 	    	}
 
-	    	if($segments[0] == 'find' && $segments[1] == 'by'){
-	    		// Remove the 2 segments ['find', 'by']
-	    		array_splice($segments, 0, 2);
+	    	// Handle findBy* and sortBy* calls
+	    	if(($segments[0] == 'find' || $segments[0] == 'sort') && $segments[1] == 'by'){
+	    		$result = null;
+	    		$action = $segments[0];
 
+	    		// Remove the first 2 segments
+	    		array_splice($segments, 0, 2);
 	    		$property_name = implode("", array_map('ucfirst', $segments));
 
-	    		return $this->scanItemsForValue($property_name, $arguments[0], count($arguments) == 2 ? $arguments[1] : null);
+	    		switch($action){
+	    			case 'find':
+	    				$result = $this->scanItemsForValue($property_name, $arguments[0], count($arguments) == 2 ? $arguments[1] : null);
+	    				break;
+	    			case 'sort':
+	    				$result = $this->setSortProperty($property_name);
+	    				break;
+	    		}
+
+	    		return $result;
 	    	}else{
 	    		throw new EntityAccessException(sprintf("Invalid method call '%s'", $segments[0]));
 	    	}
@@ -73,7 +88,7 @@
 
 				$this->_items = $result;
 
-				$this->sortItems();
+				$this->_items_require_resort = true;
 				$this->rewind();
 			}
 
@@ -95,23 +110,6 @@
 		public function getById($entity_id){
 			$result = $this->scanItemsForValue("Id", $entity_id, 1);
 			return count($result) == 0 ? null : $result[0];
-		}
-
-		protected function scanItemsForValue($property_name, $value, $max_count = null){
-			$result = array();
-			$this->load();
-
-			foreach($this->_items as $item){
-				$property_value = call_user_func_array(array($item, 'get' . $property_name), array());
-				if($property_value == $value){
-					$result[] = $item;
-					if($max_count != null && count($result) == $max_count){
-						break;
-					}
-				}
-			}
-
-			return $result;
 		}
 
 		public function current(){
@@ -139,6 +137,11 @@
 				$this->_items_removed = array();
 			}
 
+			if($this->_items_require_resort){
+				$this->_items_require_resort = false;
+				$this->sortItems();
+			}
+
 			// Reset (no return)
 			$this->_items_eof = false;
 			reset($this->_items);
@@ -154,7 +157,7 @@
 			$result = $this->_data_store->addItem($entity_id);
 			
 			$this->_items[$entity_id] = $entity;
-			$this->sortItems();
+			$this->_items_require_resort = true;
 
 			return $result;
 		}
@@ -177,7 +180,16 @@
 
 		public function count(){
 			if($this->_items_loaded){
-				return count($this->_items);
+				$total = count($this->_items);
+
+				// Remove items flagged as removed
+				foreach($this->_items as $item){
+					if($item->getId() < 0){
+						--$total;
+					}
+				}
+
+				return $total;
 			}
 
 			return $this->_data_store->getTotalItems();
@@ -195,17 +207,83 @@
 		}
 
 		public function setSortOrder($sort_order){
-			$this->_items_sort_order = $sort_order;
+			if($sort_order != $this->_items_sort_order){
+				$this->_items_sort_order = $sort_order;
+				$this->_items_require_resort = true;
+			}
 			return $this;
 		}
 
-		protected function sortItems(){
-			if($this->_items_sort_order == SortOrder::Ascending){
-				ksort($this->_items, SORT_NUMERIC);
-			}else{
-				krsort($this->_items, SORT_NUMERIC);
+		public function sortDesc(){
+			$this->setSortOrder(SortOrder::Descending);
+			return $this;
+		}
+
+		public function sortAsc(){
+			$this->setSortOrder(SortOrder::Ascending);
+			return $this;
+		}
+
+		public function notifyPropertyChange($property){
+			$property = $this->convertPropertyNameToTypeName($property);
+			if($this->_items_sort_property == $property){
+				$this->_items_require_resort = true;
 			}
 		}
+
+		protected function setSortProperty($name){
+			$this->_items_sort_property = $name == 'Id' ? null : $name;
+			$this->_items_require_resort = true;
+			return $this;
+		}
+
+		protected function scanItemsForValue($property_name, $value, $max_count = null){
+			$result = array();
+			$this->load();
+
+			foreach($this->_items as $item){
+				$property_value = call_user_func_array(array($item, 'get' . $property_name), array());
+				if($property_value == $value){
+					$result[] = $item;
+					if($max_count != null && count($result) == $max_count){
+						break;
+					}
+				}
+			}
+
+			return $result;
+		}
+
+		protected function sortItems(){
+			if(count($this->_items) > 0){
+				if($this->_items_sort_property == null){
+					if($this->_items_sort_order == SortOrder::Ascending){
+						ksort($this->_items, SORT_NUMERIC);
+					}else{
+						krsort($this->_items, SORT_NUMERIC);
+					}
+				}else{
+					@uasort($this->_items, array($this, 'compareProperty'));
+				}
+			}
+		}
+
+	    protected function compareProperty($x, $y) 
+	    {
+	    	$sort_acending = $this->_items_sort_order == SortOrder::Ascending;
+	    	$property_method = 'get' . $this->_items_sort_property;
+
+	    	$x_value = $x->$property_method();
+	    	$y_value = $y->$property_method();
+
+	        if ($x_value == $y_value){
+	            return 0;
+            }else if(($sort_acending && $x_value < $y_value) || (!$sort_acending && $x_value > $y_value)){
+	            return -1;
+	        }
+
+            return 1;
+	    }
 
 		private function getClassModelName(){
 			$segments = $this->splitIntoWords(get_class($this), false);

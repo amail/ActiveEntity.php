@@ -301,6 +301,13 @@
 	    	if(array_key_exists($name, $this->_properties)){
     			$this->_values[$name] = $value;
     			$this->_property_changes[$name] = true;
+
+    			// Notify the collection that a property has been changed.
+    			// This is important in case the collection needs to do a resort, aso..
+    			$collection = $this->getCollection();
+    			if($collection != null && $this->hasPropertyChanged($name)){
+    				$collection->notifyPropertyChange($name);
+    			}
 	    	}else{
 	    		throw new EntityAccessException(sprintf("Property '%s' does not exist", $name));
 	    	}
