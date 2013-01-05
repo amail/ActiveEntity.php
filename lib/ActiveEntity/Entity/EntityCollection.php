@@ -51,7 +51,7 @@
 
 	    		return $this->scanItemsForValue($property_name, $arguments[0], count($arguments) == 2 ? $arguments[1] : null);
 	    	}else{
-	    		throw new EntityInvalidAccessException(sprintf("Invalid method call '%s'", $segments[0]));
+	    		throw new EntityAccessException(sprintf("Invalid method call '%s'", $segments[0]));
 	    	}
 	    }
 
