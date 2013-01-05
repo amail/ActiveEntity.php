@@ -8,8 +8,8 @@ Simple library for creating entities/collections in PHP that are mapped to keys 
 ### Collection
 
  * Change sort order and sort by specific property.
- * Collection implements Iterable, so you can iterate directly on it.
- * Search the collection for entities with a specific property value.
+ * Implements Iterable, so you can iterate directly on it.
+ * Search for entities with a specific property value.
  * Find a single entity by ID.
 
 ### Entity
