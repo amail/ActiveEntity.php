@@ -26,6 +26,8 @@ Simple library for creating entities/collections in PHP that are mapped to keys 
 ActiveEntity relies heavily on conventions. I.e. if you create a collection called 'ProductItemCollection', then it is implied that it consists of entities with the type name 'ProductItem'.
 The same way, when you create a entity called 'ProductItem' it is automatically implied, that if there is a collection for it, the type name is 'ProductItemCollection'.
 
+In other words...
+
 * Entities should be named '{EntityName}', i.e. 'ProductItem'.
 * Collections should be named '{EntityName}Collection', i.e. 'ProductItemCollection'.
 * Property names should be all lower-case, with undercase as seperation between words. I.e. 'control_number'. Using this convention, the property can be accessed using $entity->getControlNumber() and set by using $entity->setControlNumber($value), a.s.o.
